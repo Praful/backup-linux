@@ -28,7 +28,11 @@ def create_database(db_file):
         connection = sqlite3.connect(db_file)
         print(sqlite3.version)
         cursor = connection.cursor()
-        cursor.execute("CREATE TABLE file_changes (id INTEGER PRIMARY KEY, creaed_at TEXT, path TEXT, change_type TEXT)")
+        #  cursor.execute("CREATE TABLE file_changes (id INTEGER PRIMARY KEY, created_at TEXT, path TEXT, change_type TEXT)")
+        cursor.execute("CREATE TABLE dir_changes (id INTEGER PRIMARY KEY  NOT NULL, path VARCHAR,created_at DATETIME,change_type VARCHAR)")
+
+        cursor.execute("CREATE TABLE backup_logs (id INTEGER PRIMARY KEY  NOT NULL, created_at DATETIME, source_path VARCHAR, dest_path VARCHAR, command VARCHAR, log_file VARCHAR, source_file VARCHAR, run_type VARCHAR DEFAULT (null) )")
+
         connection.commit()
 
     except sqlite3.Error as e:
@@ -39,7 +43,7 @@ def create_database(db_file):
 
 
 
-def log_change(db_file, filename, directory, change_type):
+def log_change(cursor, filename, directory, change_type):
     """
     Logs a change to the specified directory in the database.
 
@@ -55,14 +59,12 @@ def log_change(db_file, filename, directory, change_type):
     if was_logged_recently(directory):
         return
 
-    connection = sqlite3.connect(db_file)
-    cursor = connection.cursor()
 
     # Get the current date and time
     date = time.strftime("%Y-%m-%d %H:%M:%S")
 
     # Insert the change into the database
-    cursor.execute("INSERT INTO file_changes (id, date, directory, change_type) VALUES (NULL, ?, ?, ?)", (date, directory, change_type))
+    cursor.execute("INSERT INTO dir_changes (id, path, created_at, change_type) VALUES (NULL, ?, ?, ?)", (directory, date, change_type.strip().lower()))
     connection.commit()
     print(f"Logged: file {filename} in {directory} changed: {change_type}")
 
@@ -70,20 +72,20 @@ def log_change(db_file, filename, directory, change_type):
 
 if __name__ == "__main__":
     db_file = sys.argv[1]
-    fifo = sys.argv[2]
-    #  directory = sys.argv[2]
-    #  change_type = sys.argv[3]
+    fifo_pipe = sys.argv[2]
     if not os.path.exists(db_file):
         create_database(db_file)
     #  log_change(db_file, directory, change_type)
 
-    #  FIFO = 'dir_watcher'
     #  os.mkfifo(FIFO)
-    while True:
-        #  print('outer loop')
-        with open(fifo) as fifo:
-            #  print('open fifo')
-            for line in fifo:
-              log_change(db_file, *line.split(','))
-                #  print('change', line)
+    connection = sqlite3.connect(db_file)
+    cursor = connection.cursor()
+    try:
+        while True:
+            with open(fifo_pipe) as fifo:
+                for line in fifo:
+                    log_change(cursor, *line.split(','))
+    finally:
+        if connection:
+            connection.close()
 

@@ -16,7 +16,7 @@ path="$1"
 fifo_pipe=dir_watcher
 
 # start in background
-python log_changes.py ./file_changes.db $fifo_pipe &
+python file_change_logger.py ./file_changes.db $fifo_pipe &
 
 # pipe output to 6 to fifo; nothing special about choosing 6
 exec 6> $fifo_pipe
@@ -26,5 +26,4 @@ inotifywait --exclude 'dir_watcher|file_changes.db' -mr -e modify,delete,create 
   # inotifywait --fromfile ./exclude-files.txt --exclude 'dir_watcher' -mr -e modify,delete,create $path |
 while read -r directory events filename; do
   echo $filename, $directory, $events >&6
-  # python log_changes.py "./file_changes.db" $directory $events
 done
