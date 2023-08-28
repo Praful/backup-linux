@@ -6,6 +6,13 @@ Author: Praful https://github.com/Praful/backup-linux
 Licence: GPL v3
 =============================================================================
 """
+
+# TODO
+# allow files to be excluded from backup based on destination dir
+# allow dirs to be excluded from backup based on destination dir
+#
+
+
 import sqlite3
 import glob
 import os
@@ -46,16 +53,29 @@ class Backup:
         self.connection = sqlite3.connect(database)
         self.cursor = self.connection.cursor()
 
+    # return true if path is a subdirectory of one of the paths in dirs
+    def is_subdir(self, dirs, path):
+        for d in dirs:
+            if len(path)>len(d) and path.startswith(d):
+                return True
+        return False
+
     def start(self):
         print('start')
         from_date="2000-01-01"
         processed_dirs = set()
         home_path_len = len(os.path.expanduser('~'))
-        dir_changes = self.cursor.execute("select * from dir_changes where created_at >"+from_date)
-        #  print(dir_changes)
-        for row in dir_changes:
-            print('*'*60)
-            _,path,_,_ = row
+        dir_changes = self.cursor.execute("select path from dir_changes where created_at >"+from_date)
+        
+        #remove duplicates
+        changed_dirs = set([p[0] for p in dir_changes])
+        print(changed_dirs)
+
+        #remove subdirs since they're backed up when parent (or grandparent, etc) is backed up
+        backup_dirs = [p for p in changed_dirs if not self.is_subdir(changed_dirs, p)]
+        print(backup_dirs)
+
+        for path in backup_dirs:
             print(path)
             if path not in processed_dirs:
                 rel_path = path[home_path_len+2:] # strip homepath and leading slasdd#h
@@ -63,8 +83,8 @@ class Backup:
                 #  print('rel', rel_path, 'dest', abs_dest_path)
                 run = RUN_CMD.format(path, abs_dest_path)
                 print(run)
-                os.system(run)
-                processed_dirs.add(path)
+                #  os.system(run)
+                #  processed_dirs.add(path)
 
 
     def end(self):
